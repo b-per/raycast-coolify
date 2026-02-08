@@ -43,8 +43,8 @@ export function deploymentStatusIcon(status: string): Icon {
 export function resourceStatusColor(status: string): Color {
   if (!status) return Color.SecondaryText;
   const s = status.toLowerCase();
-  if (s.includes("running") || s.includes("healthy") || s === "finished") return Color.Green;
   if (s.includes("stopped") || s.includes("exited")) return Color.Red;
+  if (s.includes("running") || s.includes("healthy") || s === "finished") return Color.Green;
   if (s.includes("starting") || s.includes("restarting")) return Color.Yellow;
   return Color.SecondaryText;
 }
@@ -52,8 +52,8 @@ export function resourceStatusColor(status: string): Color {
 export function resourceStatusIcon(status: string): Icon {
   if (!status) return Icon.QuestionMarkCircle;
   const s = status.toLowerCase();
-  if (s.includes("running") || s.includes("healthy")) return Icon.CheckCircle;
   if (s.includes("stopped") || s.includes("exited")) return Icon.XMarkCircle;
+  if (s.includes("running") || s.includes("healthy")) return Icon.CheckCircle;
   if (s.includes("starting") || s.includes("restarting")) return Icon.Clock;
   return Icon.CircleDisabled;
 }
