@@ -5,18 +5,23 @@ import {
   Deployment,
   Environment,
   Project,
+  Service,
+  ServiceDetail,
   listProjects,
   getProject,
   getEnvironmentDetails,
+  getService,
   getApplicationLogs,
   listDeploymentsByApp,
-  getDeployment,
   restartApplication,
   stopApplication,
   startApplication,
+  restartService,
+  stopService,
+  startService,
   coolifyUrl,
 } from "./api";
-import { resourceStatusColor, resourceStatusIcon, deploymentStatusColor } from "./helpers";
+import { resourceStatusColor, resourceStatusIcon, deploymentStatusColor, parseDeploymentLogs } from "./helpers";
 
 // ── Application Logs View ────────────────────────────────────────────
 
@@ -50,39 +55,26 @@ function AppLogsView({ app }: { app: Application }) {
 
 // ── Deployment Logs View (reused from deployments) ───────────────────
 
-function DeploymentLogsView({ deploymentUuid }: { deploymentUuid: string }) {
-  const [deployment, setDeployment] = useState<Deployment | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    getDeployment(deploymentUuid)
-      .then(setDeployment)
-      .catch((err) => showToast({ style: Toast.Style.Failure, title: "Failed to load logs", message: String(err) }))
-      .finally(() => setIsLoading(false));
-  }, [deploymentUuid]);
-
-  const logs = deployment?.logs || "No logs available.";
+function DeploymentLogsView({ deployment }: { deployment: Deployment }) {
+  const logs = parseDeploymentLogs(deployment.logs);
 
   return (
     <Detail
-      isLoading={isLoading}
       navigationTitle="Deployment Logs"
       markdown={`\`\`\`\n${logs}\n\`\`\``}
       metadata={
-        deployment ? (
-          <Detail.Metadata>
-            <Detail.Metadata.TagList title="Status">
-              <Detail.Metadata.TagList.Item text={deployment.status} color={deploymentStatusColor(deployment.status)} />
-            </Detail.Metadata.TagList>
-            <Detail.Metadata.Label title="Commit" text={deployment.commit ? deployment.commit.substring(0, 8) : "—"} />
-            {deployment.commit_message && <Detail.Metadata.Label title="Message" text={deployment.commit_message} />}
-            <Detail.Metadata.Label title="Created" text={new Date(deployment.created_at).toLocaleString()} />
-          </Detail.Metadata>
-        ) : undefined
+        <Detail.Metadata>
+          <Detail.Metadata.TagList title="Status">
+            <Detail.Metadata.TagList.Item text={deployment.status} color={deploymentStatusColor(deployment.status)} />
+          </Detail.Metadata.TagList>
+          <Detail.Metadata.Label title="Commit" text={deployment.commit ? deployment.commit.substring(0, 8) : "—"} />
+          {deployment.commit_message && <Detail.Metadata.Label title="Message" text={deployment.commit_message} />}
+          <Detail.Metadata.Label title="Created" text={new Date(deployment.created_at).toLocaleString()} />
+        </Detail.Metadata>
       }
       actions={
         <ActionPanel>
-          {deployment?.deployment_url && (
+          {deployment.deployment_url && (
             <Action.OpenInBrowser title="Open in Coolify" url={coolifyUrl(deployment.deployment_url)} />
           )}
           <Action.CopyToClipboard title="Copy Logs" content={logs} />
@@ -127,7 +119,7 @@ function AppDeploymentsView({ app }: { app: Application }) {
               <Action
                 title="View Logs"
                 icon={Icon.Terminal}
-                onAction={() => push(<DeploymentLogsView deploymentUuid={d.deployment_uuid} />)}
+                onAction={() => push(<DeploymentLogsView deployment={d} />)}
               />
               {d.deployment_url && <Action.OpenInBrowser title="Open in Coolify" url={coolifyUrl(d.deployment_url)} />}
             </ActionPanel>
@@ -231,6 +223,153 @@ function ApplicationDetail({ app }: { app: Application }) {
   );
 }
 
+// ── Service Detail View ──────────────────────────────────────────────
+
+function ServiceDetailView({
+  service,
+  projectUuid,
+  envName,
+}: {
+  service: Service;
+  projectUuid: string;
+  envName: string;
+}) {
+  const [detail, setDetail] = useState<ServiceDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    getService(service.uuid)
+      .then(setDetail)
+      .catch((err) => showToast({ style: Toast.Style.Failure, title: "Failed to load service", message: String(err) }))
+      .finally(() => setIsLoading(false));
+  }, [service.uuid]);
+
+  const svcApps = detail?.applications || [];
+  const svcDbs = detail?.databases || [];
+
+  return (
+    <List isLoading={isLoading} navigationTitle={service.name} searchBarPlaceholder="Filter components…">
+      <List.Section title="Service">
+        <List.Item
+          icon={{
+            source: resourceStatusIcon(detail?.status || service.status),
+            tintColor: resourceStatusColor(detail?.status || service.status),
+          }}
+          title={service.name}
+          subtitle={service.service_type || ""}
+          accessories={[
+            {
+              tag: {
+                value: detail?.status || service.status || "unknown",
+                color: resourceStatusColor(detail?.status || service.status),
+              },
+            },
+          ]}
+          actions={
+            <ActionPanel>
+              <ActionPanel.Section title="Lifecycle">
+                <Action
+                  title="Restart"
+                  icon={Icon.ArrowClockwise}
+                  onAction={async () => {
+                    try {
+                      await showToast({ style: Toast.Style.Animated, title: "Restarting…" });
+                      await restartService(service.uuid);
+                      await showToast({ style: Toast.Style.Success, title: "Restart triggered" });
+                    } catch (err) {
+                      await showToast({ style: Toast.Style.Failure, title: "Restart failed", message: String(err) });
+                    }
+                  }}
+                />
+                <Action
+                  title="Stop"
+                  icon={Icon.Stop}
+                  style={Action.Style.Destructive}
+                  onAction={async () => {
+                    try {
+                      await showToast({ style: Toast.Style.Animated, title: "Stopping…" });
+                      await stopService(service.uuid);
+                      await showToast({ style: Toast.Style.Success, title: "Stopped" });
+                    } catch (err) {
+                      await showToast({ style: Toast.Style.Failure, title: "Stop failed", message: String(err) });
+                    }
+                  }}
+                />
+                <Action
+                  title="Start"
+                  icon={Icon.Play}
+                  onAction={async () => {
+                    try {
+                      await showToast({ style: Toast.Style.Animated, title: "Starting…" });
+                      await startService(service.uuid);
+                      await showToast({ style: Toast.Style.Success, title: "Started" });
+                    } catch (err) {
+                      await showToast({ style: Toast.Style.Failure, title: "Start failed", message: String(err) });
+                    }
+                  }}
+                />
+              </ActionPanel.Section>
+              <ActionPanel.Section title="Navigate">
+                <Action.OpenInBrowser title="Open in Coolify" url={coolifyUrl(`/project/${projectUuid}/${envName}`)} />
+              </ActionPanel.Section>
+            </ActionPanel>
+          }
+        />
+      </List.Section>
+      {svcApps.length > 0 && (
+        <List.Section title="Applications">
+          {svcApps.map((app) => (
+            <List.Item
+              key={app.uuid}
+              icon={{ source: resourceStatusIcon(app.status), tintColor: resourceStatusColor(app.status) }}
+              title={app.name}
+              subtitle={app.image || ""}
+              accessories={[
+                { tag: { value: app.status || "unknown", color: resourceStatusColor(app.status) } },
+                ...(app.last_online_at ? [{ date: new Date(app.last_online_at), tooltip: "Last online" }] : []),
+              ]}
+              actions={
+                <ActionPanel>
+                  {app.fqdn && <Action.OpenInBrowser title="Open App URL" url={app.fqdn.split(",")[0].trim()} />}
+                  {app.ports && <Action.CopyToClipboard title="Copy Ports" content={app.ports} />}
+                  <Action.OpenInBrowser
+                    title="Open in Coolify"
+                    url={coolifyUrl(`/project/${projectUuid}/${envName}`)}
+                  />
+                </ActionPanel>
+              }
+            />
+          ))}
+        </List.Section>
+      )}
+      {svcDbs.length > 0 && (
+        <List.Section title="Databases">
+          {svcDbs.map((db) => (
+            <List.Item
+              key={db.uuid}
+              icon={{ source: resourceStatusIcon(db.status), tintColor: resourceStatusColor(db.status) }}
+              title={db.name}
+              subtitle={db.image || ""}
+              accessories={[
+                { tag: { value: db.status || "unknown", color: resourceStatusColor(db.status) } },
+                ...(db.last_online_at ? [{ date: new Date(db.last_online_at), tooltip: "Last online" }] : []),
+              ]}
+              actions={
+                <ActionPanel>
+                  <Action.OpenInBrowser
+                    title="Open in Coolify"
+                    url={coolifyUrl(`/project/${projectUuid}/${envName}`)}
+                  />
+                </ActionPanel>
+              }
+            />
+          ))}
+        </List.Section>
+      )}
+    </List>
+  );
+}
+
 // ── Environment Resources View ───────────────────────────────────────
 
 function EnvironmentView({ project, env }: { project: Project; env: Environment }) {
@@ -298,11 +437,19 @@ function EnvironmentView({ project, env }: { project: Project; env: Environment 
           {services.map((svc) => (
             <List.Item
               key={svc.uuid}
-              icon={Icon.Cog}
+              icon={{ source: resourceStatusIcon(svc.status), tintColor: resourceStatusColor(svc.status) }}
               title={svc.name}
               subtitle={svc.service_type || ""}
+              accessories={[{ tag: { value: svc.status || "unknown", color: resourceStatusColor(svc.status) } }]}
               actions={
                 <ActionPanel>
+                  <Action
+                    title="View Details"
+                    icon={Icon.Sidebar}
+                    onAction={() =>
+                      push(<ServiceDetailView service={svc} projectUuid={project.uuid} envName={env.name} />)
+                    }
+                  />
                   <Action.OpenInBrowser
                     title="Open in Coolify"
                     url={coolifyUrl(`/project/${project.uuid}/${env.name}`)}

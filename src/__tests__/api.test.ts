@@ -1,6 +1,13 @@
 import fetch from "node-fetch";
 import { getPreferenceValues } from "@raycast/api";
-import { fakeResponse, sampleDeployment, sampleProject, sampleServer, sampleApplication } from "./fixtures";
+import {
+  fakeResponse,
+  sampleDeployment,
+  sampleProject,
+  sampleServer,
+  sampleApplication,
+  sampleService,
+} from "./fixtures";
 
 jest.mock("node-fetch");
 jest.mock("@raycast/api");
@@ -29,6 +36,9 @@ import {
   getServer,
   validateServer,
   listServices,
+  getService,
+  startService,
+  stopService,
   restartService,
   getVersion,
 } from "../api";
@@ -308,6 +318,26 @@ describe("service endpoints", () => {
     mockFetch.mockResolvedValue(fakeResponse([]) as never);
     await listServices();
     expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("/services"), expect.anything());
+  });
+
+  it("getService hits /services/:uuid", async () => {
+    const detail = { ...sampleService, applications: [], databases: [] };
+    mockFetch.mockResolvedValue(fakeResponse(detail) as never);
+    const result = await getService("svc-uuid-1");
+    expect(result).toEqual(detail);
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("/services/svc-uuid-1"), expect.anything());
+  });
+
+  it("startService hits /services/:uuid/start", async () => {
+    mockFetch.mockResolvedValue(fakeResponse({ message: "ok" }) as never);
+    await startService("svc-1");
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("/services/svc-1/start"), expect.anything());
+  });
+
+  it("stopService hits /services/:uuid/stop", async () => {
+    mockFetch.mockResolvedValue(fakeResponse({ message: "ok" }) as never);
+    await stopService("svc-1");
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("/services/svc-1/stop"), expect.anything());
   });
 
   it("restartService hits /services/:uuid/restart", async () => {

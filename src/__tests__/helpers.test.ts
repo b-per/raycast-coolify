@@ -31,6 +31,7 @@ import {
   resourceStatusIcon,
   proxyStatusColor,
   proxyStatusText,
+  parseDeploymentLogs,
 } from "../helpers";
 import type { Server } from "../api";
 
@@ -253,5 +254,58 @@ describe("proxyStatusText", () => {
 
   it("returns 'unknown' when proxy is undefined", () => {
     expect(proxyStatusText(server({ proxy: undefined }))).toBe("unknown");
+  });
+});
+
+// ── parseDeploymentLogs ─────────────────────────────────────────────
+
+describe("parseDeploymentLogs", () => {
+  it("parses JSON array of log entries into output lines", () => {
+    const raw = JSON.stringify([
+      { output: "Starting build", type: "stdout", hidden: false },
+      { output: "Build complete", type: "stdout", hidden: false },
+    ]);
+    expect(parseDeploymentLogs(raw)).toBe("Starting build\nBuild complete");
+  });
+
+  it("includes hidden (debug) entries", () => {
+    const raw = JSON.stringify([
+      { output: "visible", type: "stdout", hidden: false },
+      { output: "debug", type: "stdout", hidden: true },
+    ]);
+    expect(parseDeploymentLogs(raw)).toBe("visible\ndebug");
+  });
+
+  it("filters out entries with empty output", () => {
+    const raw = JSON.stringify([
+      { output: "", type: "stdout", hidden: false },
+      { output: "line", type: "stdout", hidden: false },
+    ]);
+    expect(parseDeploymentLogs(raw)).toBe("line");
+  });
+
+  it("returns fallback for null", () => {
+    expect(parseDeploymentLogs(null)).toBe("No logs available.");
+  });
+
+  it("returns fallback for undefined", () => {
+    expect(parseDeploymentLogs(undefined)).toBe("No logs available.");
+  });
+
+  it("returns fallback for empty string", () => {
+    expect(parseDeploymentLogs("")).toBe("No logs available.");
+  });
+
+  it("returns plain string if not valid JSON", () => {
+    expect(parseDeploymentLogs("plain log text")).toBe("plain log text");
+  });
+
+  it("returns raw string if JSON parses to non-array", () => {
+    expect(parseDeploymentLogs('{"key":"val"}')).toBe('{"key":"val"}');
+  });
+
+  it("includes entries even if all are hidden", () => {
+    const raw = JSON.stringify([{ output: "debug only", type: "stdout", hidden: true }]);
+    expect(parseDeploymentLogs(raw)).toBe("debug only");
   });
 });

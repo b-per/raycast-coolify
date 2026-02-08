@@ -1,4 +1,4 @@
-import type { Deployment, Project, Server, Application } from "../api";
+import type { Deployment, Project, Server, Application, Service } from "../api";
 
 /** Build a mock fetch Response */
 export function fakeResponse(body: unknown, status = 200) {
@@ -65,6 +65,17 @@ export const sampleProject: Project = {
       description: null,
     },
   ],
+};
+
+export const sampleService: Service = {
+  id: 1,
+  uuid: "svc-uuid-1",
+  name: "immich",
+  description: "Photo management",
+  service_type: "immich",
+  status: "running:healthy",
+  created_at: "2025-01-01T00:00:00Z",
+  updated_at: "2025-01-15T00:00:00Z",
 };
 
 export const sampleServer: Server = {

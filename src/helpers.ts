@@ -58,6 +58,27 @@ export function resourceStatusIcon(status: string): Icon {
   return Icon.CircleDisabled;
 }
 
+// ── Deployment log parsing ──
+
+interface LogEntry {
+  output: string;
+  type?: string;
+  hidden?: boolean;
+}
+
+/** Parse the `logs` field from a deployment (JSON string of log entries, or plain string). */
+export function parseDeploymentLogs(raw: string | null | undefined): string {
+  if (!raw) return "No logs available.";
+  try {
+    const entries: LogEntry[] = JSON.parse(raw);
+    if (!Array.isArray(entries)) return raw;
+    const lines = entries.filter((e) => e.output).map((e) => e.output);
+    return lines.length > 0 ? lines.join("\n") : "No logs available.";
+  } catch {
+    return raw;
+  }
+}
+
 // ── Proxy status helpers (used in proxy.tsx) ──
 
 export function proxyStatusColor(server: Server): Color {

@@ -100,8 +100,32 @@ export interface Service {
   name: string;
   description: string | null;
   service_type: string | null;
+  status: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface ServiceApplication {
+  uuid: string;
+  name: string;
+  status: string;
+  image: string | null;
+  fqdn: string | null;
+  ports: string | null;
+  last_online_at: string | null;
+}
+
+export interface ServiceDatabase {
+  uuid: string;
+  name: string;
+  status: string;
+  image: string | null;
+  last_online_at: string | null;
+}
+
+export interface ServiceDetail extends Service {
+  applications?: ServiceApplication[];
+  databases?: ServiceDatabase[];
 }
 
 export interface Database {
@@ -192,6 +216,9 @@ export const getServer = (uuid: string) => api<Server>(`/servers/${uuid}`);
 
 // Services
 export const listServices = () => api<Service[]>("/services");
+export const getService = (uuid: string) => api<ServiceDetail>(`/services/${uuid}`);
+export const startService = (uuid: string) => api<{ message: string }>(`/services/${uuid}/start`);
+export const stopService = (uuid: string) => api<{ message: string }>(`/services/${uuid}/stop`);
 export const restartService = (uuid: string) => api<{ message: string }>(`/services/${uuid}/restart`);
 
 // Servers — validation
