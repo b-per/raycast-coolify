@@ -5,6 +5,9 @@ import { getPreferenceValues } from "@raycast/api";
 interface Preferences {
   serverUrl: string;
   apiToken: string;
+}
+
+interface TraefikPreferences {
   traefikUrl?: string;
   traefikUser?: string;
   traefikPassword?: string;
@@ -310,7 +313,7 @@ interface TraefikRawService {
 }
 
 export async function fetchTraefikRawData(): Promise<{ routers: TraefikRouter[]; services: TraefikService[] }> {
-  const { traefikUrl, traefikUser, traefikPassword } = prefs();
+  const { traefikUrl, traefikUser, traefikPassword } = getPreferenceValues<TraefikPreferences>();
   if (!traefikUrl) return { routers: [], services: [] };
 
   const url = traefikUrl.replace(/\/+$/, "") + "/api/rawdata";

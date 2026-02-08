@@ -29,7 +29,31 @@
       "title": "Traefik Proxy",
       "subtitle": "Coolify",
       "description": "View Traefik proxy status and restart",
-      "mode": "view"
+      "mode": "view",
+      "preferences": [
+        {
+          "name": "traefikUrl",
+          "title": "Traefik Dashboard URL",
+          "description": "URL of your Traefik dashboard API (e.g. https://traefik.example.com). Leave empty to skip Traefik integration.",
+          "type": "textfield",
+          "required": false,
+          "placeholder": "https://traefik.example.com"
+        },
+        {
+          "name": "traefikUser",
+          "title": "Traefik Username",
+          "description": "Username for Traefik Basic Auth",
+          "type": "textfield",
+          "required": false
+        },
+        {
+          "name": "traefikPassword",
+          "title": "Traefik Password",
+          "description": "Password for Traefik Basic Auth",
+          "type": "password",
+          "required": false
+        }
+      ]
     }
   ],
   "preferences": [
@@ -47,28 +71,6 @@
       "description": "Your Coolify API token (create one in Keys & Tokens settings)",
       "type": "password",
       "required": true
-    },
-    {
-      "name": "traefikUrl",
-      "title": "Traefik Dashboard URL",
-      "description": "URL of your Traefik dashboard API (e.g. https://traefik.example.com). Leave empty to skip Traefik integration.",
-      "type": "textfield",
-      "required": false,
-      "placeholder": "https://traefik.example.com"
-    },
-    {
-      "name": "traefikUser",
-      "title": "Traefik Username",
-      "description": "Username for Traefik Basic Auth",
-      "type": "textfield",
-      "required": false
-    },
-    {
-      "name": "traefikPassword",
-      "title": "Traefik Password",
-      "description": "Password for Traefik Basic Auth",
-      "type": "password",
-      "required": false
     }
   ],
   "dependencies": {

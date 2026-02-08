@@ -11,13 +11,7 @@ type ExtensionPreferences = {
   /** Coolify Server URL - The URL of your Coolify instance (e.g. https://coolify.example.com) */
   "serverUrl": string,
   /** API Token - Your Coolify API token (create one in Keys & Tokens settings) */
-  "apiToken": string,
-  /** Traefik Dashboard URL - URL of your Traefik dashboard API (e.g. https://traefik.example.com). Leave empty to skip Traefik integration. */
-  "traefikUrl"?: string,
-  /** Traefik Username - Username for Traefik Basic Auth */
-  "traefikUser"?: string,
-  /** Traefik Password - Password for Traefik Basic Auth */
-  "traefikPassword"?: string
+  "apiToken": string
 }
 
 /** Preferences accessible in all the extension's commands */
@@ -29,7 +23,14 @@ declare namespace Preferences {
   /** Preferences accessible in the `projects` command */
   export type Projects = ExtensionPreferences & {}
   /** Preferences accessible in the `proxy` command */
-  export type Proxy = ExtensionPreferences & {}
+  export type Proxy = ExtensionPreferences & {
+  /** Traefik Dashboard URL - URL of your Traefik dashboard API (e.g. https://traefik.example.com). Leave empty to skip Traefik integration. */
+  "traefikUrl"?: string,
+  /** Traefik Username - Username for Traefik Basic Auth */
+  "traefikUser"?: string,
+  /** Traefik Password - Password for Traefik Basic Auth */
+  "traefikPassword"?: string
+}
 }
 
 declare namespace Arguments {
