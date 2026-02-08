@@ -5,12 +5,18 @@ import {
   Deployment,
   Environment,
   Project,
+  Database,
+  DatabaseDetail,
   Service,
   ServiceDetail,
   listProjects,
   getProject,
   getEnvironmentDetails,
   getService,
+  getDatabase,
+  startDatabase,
+  stopDatabase,
+  restartDatabase,
   getApplicationLogs,
   listDeploymentsByApp,
   restartApplication,
@@ -370,6 +376,113 @@ function ServiceDetailView({
   );
 }
 
+// ── Database Detail View ─────────────────────────────────────────────
+
+function DatabaseDetailView({ db, projectUuid, envName }: { db: Database; projectUuid: string; envName: string }) {
+  const [detail, setDetail] = useState<DatabaseDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    getDatabase(db.uuid)
+      .then(setDetail)
+      .catch((err) => showToast({ style: Toast.Style.Failure, title: "Failed to load database", message: String(err) }))
+      .finally(() => setIsLoading(false));
+  }, [db.uuid]);
+
+  const d = detail || db;
+
+  return (
+    <Detail
+      isLoading={isLoading}
+      navigationTitle={db.name}
+      markdown={`# ${d.name}\n\n${d.description || ""}`}
+      metadata={
+        <Detail.Metadata>
+          <Detail.Metadata.TagList title="Status">
+            <Detail.Metadata.TagList.Item text={d.status || "unknown"} color={resourceStatusColor(d.status)} />
+          </Detail.Metadata.TagList>
+          {detail?.image && <Detail.Metadata.Label title="Image" text={detail.image} />}
+          <Detail.Metadata.Label title="Type" text={d.type || "—"} />
+          <Detail.Metadata.Separator />
+          {detail?.is_public && detail.public_port && (
+            <Detail.Metadata.Label title="Public Port" text={String(detail.public_port)} />
+          )}
+          {detail?.internal_db_url && <Detail.Metadata.Label title="Internal URL" text={detail.internal_db_url} />}
+          {detail?.external_db_url && <Detail.Metadata.Label title="External URL" text={detail.external_db_url} />}
+          {(detail?.limits_memory || detail?.limits_cpus) && (
+            <>
+              <Detail.Metadata.Separator />
+              {detail.limits_memory && <Detail.Metadata.Label title="Memory Limit" text={detail.limits_memory} />}
+              {detail.limits_cpus && <Detail.Metadata.Label title="CPU Limit" text={detail.limits_cpus} />}
+            </>
+          )}
+          <Detail.Metadata.Separator />
+          <Detail.Metadata.Label title="UUID" text={d.uuid} />
+          <Detail.Metadata.Label title="Created" text={new Date(d.created_at).toLocaleString()} />
+          <Detail.Metadata.Label title="Updated" text={new Date(d.updated_at).toLocaleString()} />
+        </Detail.Metadata>
+      }
+      actions={
+        <ActionPanel>
+          <ActionPanel.Section title="Lifecycle">
+            <Action
+              title="Restart"
+              icon={Icon.ArrowClockwise}
+              onAction={async () => {
+                try {
+                  await showToast({ style: Toast.Style.Animated, title: "Restarting…" });
+                  await restartDatabase(db.uuid);
+                  await showToast({ style: Toast.Style.Success, title: "Restart triggered" });
+                } catch (err) {
+                  await showToast({ style: Toast.Style.Failure, title: "Restart failed", message: String(err) });
+                }
+              }}
+            />
+            <Action
+              title="Stop"
+              icon={Icon.Stop}
+              style={Action.Style.Destructive}
+              onAction={async () => {
+                try {
+                  await showToast({ style: Toast.Style.Animated, title: "Stopping…" });
+                  await stopDatabase(db.uuid);
+                  await showToast({ style: Toast.Style.Success, title: "Stopped" });
+                } catch (err) {
+                  await showToast({ style: Toast.Style.Failure, title: "Stop failed", message: String(err) });
+                }
+              }}
+            />
+            <Action
+              title="Start"
+              icon={Icon.Play}
+              onAction={async () => {
+                try {
+                  await showToast({ style: Toast.Style.Animated, title: "Starting…" });
+                  await startDatabase(db.uuid);
+                  await showToast({ style: Toast.Style.Success, title: "Started" });
+                } catch (err) {
+                  await showToast({ style: Toast.Style.Failure, title: "Start failed", message: String(err) });
+                }
+              }}
+            />
+          </ActionPanel.Section>
+          <ActionPanel.Section title="Navigate">
+            <Action.OpenInBrowser title="Open in Coolify" url={coolifyUrl(`/project/${projectUuid}/${envName}`)} />
+          </ActionPanel.Section>
+          {detail?.internal_db_url && (
+            <ActionPanel.Section title="Copy">
+              <Action.CopyToClipboard title="Copy Internal URL" content={detail.internal_db_url} />
+              {detail.external_db_url && (
+                <Action.CopyToClipboard title="Copy External URL" content={detail.external_db_url} />
+              )}
+            </ActionPanel.Section>
+          )}
+        </ActionPanel>
+      }
+    />
+  );
+}
+
 // ── Environment Resources View ───────────────────────────────────────
 
 function EnvironmentView({ project, env }: { project: Project; env: Environment }) {
@@ -465,12 +578,17 @@ function EnvironmentView({ project, env }: { project: Project; env: Environment 
           {databases.map((db) => (
             <List.Item
               key={db.uuid}
-              icon={Icon.HardDrive}
+              icon={{ source: Icon.HardDrive, tintColor: resourceStatusColor(db.status) }}
               title={db.name}
               subtitle={db.type || ""}
               accessories={[{ tag: { value: db.status || "unknown", color: resourceStatusColor(db.status) } }]}
               actions={
                 <ActionPanel>
+                  <Action
+                    title="View Details"
+                    icon={Icon.Sidebar}
+                    onAction={() => push(<DatabaseDetailView db={db} projectUuid={project.uuid} envName={env.name} />)}
+                  />
                   <Action.OpenInBrowser
                     title="Open in Coolify"
                     url={coolifyUrl(`/project/${project.uuid}/${env.name}`)}
@@ -566,7 +684,11 @@ export default function ProjectsCommand() {
                 <Action
                   title="View Environments"
                   icon={Icon.Layers}
-                  onAction={() => push(<ProjectView project={p} />)}
+                  onAction={() =>
+                    p.environments?.length === 1
+                      ? push(<EnvironmentView project={p} env={p.environments[0]} />)
+                      : push(<ProjectView project={p} />)
+                  }
                 />
                 <Action.OpenInBrowser title="Open in Coolify" url={coolifyUrl(`/project/${p.uuid}`)} />
                 <Action

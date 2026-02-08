@@ -40,6 +40,10 @@ import {
   startService,
   stopService,
   restartService,
+  getDatabase,
+  startDatabase,
+  stopDatabase,
+  restartDatabase,
   getVersion,
 } from "../api";
 
@@ -344,6 +348,36 @@ describe("service endpoints", () => {
     mockFetch.mockResolvedValue(fakeResponse({ message: "ok" }) as never);
     await restartService("svc-1");
     expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("/services/svc-1/restart"), expect.anything());
+  });
+});
+
+// ── Databases ────────────────────────────────────────────────────────
+
+describe("database endpoints", () => {
+  it("getDatabase hits /databases/:uuid", async () => {
+    const detail = { uuid: "db-uuid-1", name: "postgres", status: "running", image: "postgres:16" };
+    mockFetch.mockResolvedValue(fakeResponse(detail) as never);
+    const result = await getDatabase("db-uuid-1");
+    expect(result).toEqual(detail);
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("/databases/db-uuid-1"), expect.anything());
+  });
+
+  it("startDatabase hits /databases/:uuid/start", async () => {
+    mockFetch.mockResolvedValue(fakeResponse({ message: "ok" }) as never);
+    await startDatabase("db-1");
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("/databases/db-1/start"), expect.anything());
+  });
+
+  it("stopDatabase hits /databases/:uuid/stop", async () => {
+    mockFetch.mockResolvedValue(fakeResponse({ message: "ok" }) as never);
+    await stopDatabase("db-1");
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("/databases/db-1/stop"), expect.anything());
+  });
+
+  it("restartDatabase hits /databases/:uuid/restart", async () => {
+    mockFetch.mockResolvedValue(fakeResponse({ message: "ok" }) as never);
+    await restartDatabase("db-1");
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("/databases/db-1/restart"), expect.anything());
   });
 });
 

@@ -139,6 +139,16 @@ export interface Database {
   updated_at: string;
 }
 
+export interface DatabaseDetail extends Database {
+  image: string | null;
+  is_public: boolean;
+  public_port: number | null;
+  internal_db_url: string | null;
+  external_db_url: string | null;
+  limits_memory: string | null;
+  limits_cpus: string | null;
+}
+
 export interface Deployment {
   id: number;
   application_id: string;
@@ -187,8 +197,27 @@ export interface Server {
 // Projects
 export const listProjects = () => api<Project[]>("/projects");
 export const getProject = (uuid: string) => api<Project>(`/projects/${uuid}`);
-export const getEnvironmentDetails = (projectUuid: string, envName: string) =>
-  api<Environment>(`/projects/${projectUuid}/${envName}`);
+export const getEnvironmentDetails = async (projectUuid: string, envName: string): Promise<Environment> => {
+  const raw = await api<
+    Omit<Environment, "databases"> & {
+      postgresqls?: Database[];
+      mysqls?: Database[];
+      mariadbs?: Database[];
+      mongodbs?: Database[];
+      redis?: Database[];
+    }
+  >(`/projects/${projectUuid}/${envName}`);
+  return {
+    ...raw,
+    databases: [
+      ...(raw.postgresqls || []),
+      ...(raw.mysqls || []),
+      ...(raw.mariadbs || []),
+      ...(raw.mongodbs || []),
+      ...(raw.redis || []),
+    ],
+  };
+};
 
 // Applications
 export const listApplications = () => api<Application[]>("/applications");
@@ -220,6 +249,12 @@ export const getService = (uuid: string) => api<ServiceDetail>(`/services/${uuid
 export const startService = (uuid: string) => api<{ message: string }>(`/services/${uuid}/start`);
 export const stopService = (uuid: string) => api<{ message: string }>(`/services/${uuid}/stop`);
 export const restartService = (uuid: string) => api<{ message: string }>(`/services/${uuid}/restart`);
+
+// Databases
+export const getDatabase = (uuid: string) => api<DatabaseDetail>(`/databases/${uuid}`);
+export const startDatabase = (uuid: string) => api<{ message: string }>(`/databases/${uuid}/start`);
+export const stopDatabase = (uuid: string) => api<{ message: string }>(`/databases/${uuid}/stop`);
+export const restartDatabase = (uuid: string) => api<{ message: string }>(`/databases/${uuid}/restart`);
 
 // Servers — validation
 export const validateServer = (uuid: string) => api<void>(`/servers/${uuid}/validate`);
