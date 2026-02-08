@@ -32,6 +32,9 @@ import {
   proxyStatusColor,
   proxyStatusText,
   parseDeploymentLogs,
+  traefikStatusColor,
+  traefikStatusIcon,
+  extractHostFromRule,
 } from "../helpers";
 import type { Server } from "../api";
 
@@ -307,5 +310,65 @@ describe("parseDeploymentLogs", () => {
   it("includes entries even if all are hidden", () => {
     const raw = JSON.stringify([{ output: "debug only", type: "stdout", hidden: true }]);
     expect(parseDeploymentLogs(raw)).toBe("debug only");
+  });
+});
+
+// ── traefikStatusColor ──────────────────────────────────────────────
+
+describe("traefikStatusColor", () => {
+  it("returns Green for enabled", () => {
+    expect(traefikStatusColor("enabled")).toBe("green");
+  });
+
+  it("returns Red for disabled", () => {
+    expect(traefikStatusColor("disabled")).toBe("red");
+  });
+
+  it("returns SecondaryText for unknown status", () => {
+    expect(traefikStatusColor("warning")).toBe("secondaryText");
+  });
+
+  it("returns SecondaryText for empty string", () => {
+    expect(traefikStatusColor("")).toBe("secondaryText");
+  });
+});
+
+// ── traefikStatusIcon ───────────────────────────────────────────────
+
+describe("traefikStatusIcon", () => {
+  it("returns CheckCircle for enabled", () => {
+    expect(traefikStatusIcon("enabled")).toBe("checkCircle");
+  });
+
+  it("returns XMarkCircle for disabled", () => {
+    expect(traefikStatusIcon("disabled")).toBe("xMarkCircle");
+  });
+
+  it("returns QuestionMarkCircle for unknown", () => {
+    expect(traefikStatusIcon("something")).toBe("questionMarkCircle");
+  });
+});
+
+// ── extractHostFromRule ─────────────────────────────────────────────
+
+describe("extractHostFromRule", () => {
+  it("extracts hostname from Host rule", () => {
+    expect(extractHostFromRule("Host(`app.example.com`)")).toBe("app.example.com");
+  });
+
+  it("extracts hostname when combined with other matchers", () => {
+    expect(extractHostFromRule("Host(`app.example.com`) && PathPrefix(`/api`)")).toBe("app.example.com");
+  });
+
+  it("returns null for non-Host rules", () => {
+    expect(extractHostFromRule("PathPrefix(`/api`)")).toBeNull();
+  });
+
+  it("returns null for empty rule", () => {
+    expect(extractHostFromRule("")).toBeNull();
+  });
+
+  it("extracts first host when multiple Host matchers exist", () => {
+    expect(extractHostFromRule("Host(`first.example.com`) || Host(`second.example.com`)")).toBe("first.example.com");
   });
 });

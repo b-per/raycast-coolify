@@ -5,6 +5,9 @@ import { getPreferenceValues } from "@raycast/api";
 interface Preferences {
   serverUrl: string;
   apiToken: string;
+  traefikUrl?: string;
+  traefikUser?: string;
+  traefikPassword?: string;
 }
 
 function prefs() {
@@ -261,3 +264,96 @@ export const validateServer = (uuid: string) => api<void>(`/servers/${uuid}/vali
 
 // System
 export const getVersion = () => api<string>("/version");
+
+// ── Traefik types ───────────────────────────────────────────────────
+
+export interface TraefikRouter {
+  name: string;
+  entryPoints: string[];
+  service: string;
+  rule: string;
+  status: string;
+  middlewares?: string[];
+  tls?: { certResolver?: string };
+  provider: string;
+}
+
+export interface TraefikService {
+  name: string;
+  status: string;
+  loadBalancer?: { servers?: { url: string }[]; passHostHeader?: boolean };
+  serverStatus?: Record<string, string>;
+  usedBy?: string[];
+  provider: string;
+  type?: string;
+}
+
+// ── Traefik API ─────────────────────────────────────────────────────
+
+interface TraefikRawRouter {
+  entryPoints?: string[];
+  service?: string;
+  rule?: string;
+  status?: string;
+  middlewares?: string[];
+  tls?: { certResolver?: string };
+  provider?: string;
+}
+
+interface TraefikRawService {
+  status?: string;
+  loadBalancer?: { servers?: { url: string }[]; passHostHeader?: boolean };
+  serverStatus?: Record<string, string>;
+  usedBy?: string[];
+  provider?: string;
+  type?: string;
+}
+
+export async function fetchTraefikRawData(): Promise<{ routers: TraefikRouter[]; services: TraefikService[] }> {
+  const { traefikUrl, traefikUser, traefikPassword } = prefs();
+  if (!traefikUrl) return { routers: [], services: [] };
+
+  const url = traefikUrl.replace(/\/+$/, "") + "/api/rawdata";
+  const fetchHeaders: Record<string, string> = { Accept: "application/json" };
+  if (traefikUser && traefikPassword) {
+    fetchHeaders["Authorization"] = `Basic ${Buffer.from(`${traefikUser}:${traefikPassword}`).toString("base64")}`;
+  }
+
+  const res = await fetch(url, { headers: fetchHeaders });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Traefik API ${res.status}: ${text}`);
+  }
+
+  const data = (await res.json()) as {
+    routers?: Record<string, TraefikRawRouter>;
+    services?: Record<string, TraefikRawService>;
+  };
+
+  const routers: TraefikRouter[] = Object.entries(data.routers ?? {})
+    .map(([name, r]) => ({
+      name,
+      entryPoints: r.entryPoints ?? [],
+      service: r.service ?? "",
+      rule: r.rule ?? "",
+      status: r.status ?? "unknown",
+      middlewares: r.middlewares,
+      tls: r.tls,
+      provider: r.provider ?? "unknown",
+    }))
+    .filter((r) => r.provider !== "internal");
+
+  const services: TraefikService[] = Object.entries(data.services ?? {})
+    .map(([name, s]) => ({
+      name,
+      status: s.status ?? "unknown",
+      loadBalancer: s.loadBalancer,
+      serverStatus: s.serverStatus,
+      usedBy: s.usedBy,
+      provider: s.provider ?? "unknown",
+      type: s.type,
+    }))
+    .filter((s) => s.provider !== "internal");
+
+  return { routers, services };
+}

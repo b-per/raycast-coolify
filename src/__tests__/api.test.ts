@@ -45,6 +45,7 @@ import {
   stopDatabase,
   restartDatabase,
   getVersion,
+  fetchTraefikRawData,
 } from "../api";
 
 beforeEach(() => {
@@ -388,5 +389,195 @@ describe("system endpoints", () => {
     mockFetch.mockResolvedValue(fakeResponse("4.0.0") as never);
     const result = await getVersion();
     expect(result).toBe("4.0.0");
+  });
+});
+
+// ── Traefik ─────────────────────────────────────────────────────────
+
+describe("fetchTraefikRawData", () => {
+  it("returns empty arrays when traefikUrl is not set", async () => {
+    mockPrefs.mockReturnValue({
+      serverUrl: "https://coolify.example.com",
+      apiToken: "test-token-123",
+    });
+    const result = await fetchTraefikRawData();
+    expect(result).toEqual({ routers: [], services: [] });
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("returns empty arrays when traefikUrl is empty string", async () => {
+    mockPrefs.mockReturnValue({
+      serverUrl: "https://coolify.example.com",
+      apiToken: "test-token-123",
+      traefikUrl: "",
+    });
+    const result = await fetchTraefikRawData();
+    expect(result).toEqual({ routers: [], services: [] });
+  });
+
+  it("sends correct Basic Auth header when credentials are provided", async () => {
+    mockPrefs.mockReturnValue({
+      serverUrl: "https://coolify.example.com",
+      apiToken: "test-token-123",
+      traefikUrl: "https://traefik.example.com",
+      traefikUser: "admin",
+      traefikPassword: "secret",
+    });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue({ routers: {}, services: {} }),
+    } as never);
+
+    await fetchTraefikRawData();
+
+    const expectedAuth = `Basic ${Buffer.from("admin:secret").toString("base64")}`;
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://traefik.example.com/api/rawdata",
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: expectedAuth }),
+      }),
+    );
+  });
+
+  it("does not send Auth header when credentials are missing", async () => {
+    mockPrefs.mockReturnValue({
+      serverUrl: "https://coolify.example.com",
+      apiToken: "test-token-123",
+      traefikUrl: "https://traefik.example.com",
+    });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue({ routers: {}, services: {} }),
+    } as never);
+
+    await fetchTraefikRawData();
+
+    const call = mockFetch.mock.calls[0];
+    const headers = (call[1] as { headers: Record<string, string> }).headers;
+    expect(headers.Authorization).toBeUndefined();
+  });
+
+  it("flattens Record response into arrays with key as name", async () => {
+    mockPrefs.mockReturnValue({
+      serverUrl: "https://coolify.example.com",
+      apiToken: "test-token-123",
+      traefikUrl: "https://traefik.example.com",
+    });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue({
+        routers: {
+          "my-router@docker": {
+            entryPoints: ["websecure"],
+            service: "my-svc",
+            rule: "Host(`app.example.com`)",
+            status: "enabled",
+            provider: "docker",
+          },
+        },
+        services: {
+          "my-svc@docker": {
+            status: "enabled",
+            loadBalancer: { servers: [{ url: "http://10.0.0.1:8080" }] },
+            serverStatus: { "http://10.0.0.1:8080": "UP" },
+            provider: "docker",
+          },
+        },
+      }),
+    } as never);
+
+    const result = await fetchTraefikRawData();
+
+    expect(result.routers).toHaveLength(1);
+    expect(result.routers[0].name).toBe("my-router@docker");
+    expect(result.routers[0].rule).toBe("Host(`app.example.com`)");
+    expect(result.routers[0].entryPoints).toEqual(["websecure"]);
+
+    expect(result.services).toHaveLength(1);
+    expect(result.services[0].name).toBe("my-svc@docker");
+    expect(result.services[0].loadBalancer?.servers).toEqual([{ url: "http://10.0.0.1:8080" }]);
+  });
+
+  it("filters out internal provider entries", async () => {
+    mockPrefs.mockReturnValue({
+      serverUrl: "https://coolify.example.com",
+      apiToken: "test-token-123",
+      traefikUrl: "https://traefik.example.com",
+    });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue({
+        routers: {
+          "api@internal": {
+            entryPoints: ["traefik"],
+            service: "api@internal",
+            rule: "PathPrefix(`/api`)",
+            status: "enabled",
+            provider: "internal",
+          },
+          "my-app@docker": {
+            entryPoints: ["websecure"],
+            service: "my-app",
+            rule: "Host(`app.example.com`)",
+            status: "enabled",
+            provider: "docker",
+          },
+        },
+        services: {
+          "api@internal": {
+            status: "enabled",
+            provider: "internal",
+          },
+          "my-app@docker": {
+            status: "enabled",
+            provider: "docker",
+          },
+        },
+      }),
+    } as never);
+
+    const result = await fetchTraefikRawData();
+
+    expect(result.routers).toHaveLength(1);
+    expect(result.routers[0].name).toBe("my-app@docker");
+
+    expect(result.services).toHaveLength(1);
+    expect(result.services[0].name).toBe("my-app@docker");
+  });
+
+  it("throws on non-OK HTTP status", async () => {
+    mockPrefs.mockReturnValue({
+      serverUrl: "https://coolify.example.com",
+      apiToken: "test-token-123",
+      traefikUrl: "https://traefik.example.com",
+    });
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 401,
+      text: jest.fn().mockResolvedValue("Unauthorized"),
+    } as never);
+
+    await expect(fetchTraefikRawData()).rejects.toThrow("Traefik API 401: Unauthorized");
+  });
+
+  it("strips trailing slashes from traefikUrl", async () => {
+    mockPrefs.mockReturnValue({
+      serverUrl: "https://coolify.example.com",
+      apiToken: "test-token-123",
+      traefikUrl: "https://traefik.example.com///",
+    });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue({ routers: {}, services: {} }),
+    } as never);
+
+    await fetchTraefikRawData();
+
+    expect(mockFetch).toHaveBeenCalledWith("https://traefik.example.com/api/rawdata", expect.anything());
   });
 });

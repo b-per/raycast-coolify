@@ -92,3 +92,33 @@ export function proxyStatusText(server: Server): string {
   if (server.settings?.is_reachable === false) return "unreachable";
   return server.proxy?.status || "unknown";
 }
+
+// ── Traefik helpers ─────────────────────────────────────────────────
+
+export function traefikStatusColor(status: string): Color {
+  switch (status) {
+    case "enabled":
+      return Color.Green;
+    case "disabled":
+      return Color.Red;
+    default:
+      return Color.SecondaryText;
+  }
+}
+
+export function traefikStatusIcon(status: string): Icon {
+  switch (status) {
+    case "enabled":
+      return Icon.CheckCircle;
+    case "disabled":
+      return Icon.XMarkCircle;
+    default:
+      return Icon.QuestionMarkCircle;
+  }
+}
+
+/** Extract hostname from a Traefik Host(`...`) rule. Returns null if no match. */
+export function extractHostFromRule(rule: string): string | null {
+  const match = rule.match(/Host\(`([^`]+)`\)/);
+  return match ? match[1] : null;
+}
