@@ -1,7 +1,6 @@
 import { Action, ActionPanel, Color, Icon, List, showToast, Toast, confirmAlert, Alert } from "@raycast/api";
 import { useState, useEffect } from "react";
 import { Server, listServers, coolifyUrl, validateServer } from "./api";
-import { proxyStatusColor, proxyStatusText } from "./helpers";
 
 export default function ProxyCommand() {
   const [servers, setServers] = useState<Server[]>([]);
@@ -45,16 +44,13 @@ export default function ProxyCommand() {
   return (
     <List isLoading={isLoading} searchBarPlaceholder="Filter servers…">
       {servers.map((server) => {
-        const status = proxyStatusText(server);
-        const color = proxyStatusColor(server);
         return (
           <List.Item
             key={server.uuid}
-            icon={{ source: Icon.Globe, tintColor: color }}
+            icon={{ source: Icon.Globe, tintColor: server.settings?.is_reachable ? Color.Green : Color.Red }}
             title={server.name}
             subtitle={`${server.ip}:${server.port} — Proxy: ${server.proxy?.type || "traefik"}`}
             accessories={[
-              { tag: { value: status, color } },
               {
                 tag: {
                   value: server.settings?.is_reachable ? "reachable" : "unreachable",
