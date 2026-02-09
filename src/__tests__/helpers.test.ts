@@ -5,7 +5,9 @@
  * so the tests run in Node without the full Raycast runtime.
  */
 
-jest.mock("@raycast/api", () => ({
+import { describe, it, expect, vi } from "vitest";
+
+vi.mock("@raycast/api", () => ({
   Color: {
     Green: "green",
     Red: "red",

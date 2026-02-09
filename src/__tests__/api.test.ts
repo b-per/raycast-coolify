@@ -1,3 +1,9 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+vi.mock("node-fetch", () => ({ default: vi.fn() }));
+vi.mock("@raycast/api", () => ({ getPreferenceValues: vi.fn() }));
+vi.mock("@raycast/utils", () => ({ useFetch: vi.fn() }));
+
 import fetch from "node-fetch";
 import { getPreferenceValues } from "@raycast/api";
 import {
@@ -9,12 +15,8 @@ import {
   sampleService,
 } from "./fixtures";
 
-jest.mock("node-fetch");
-jest.mock("@raycast/api");
-jest.mock("@raycast/utils");
-
-const mockFetch = fetch as jest.MockedFunction<typeof fetch>;
-const mockPrefs = getPreferenceValues as jest.MockedFunction<typeof getPreferenceValues>;
+const mockFetch = vi.mocked(fetch);
+const mockPrefs = vi.mocked(getPreferenceValues);
 
 // Import api functions after mocks are set up
 import {
@@ -49,7 +51,7 @@ import {
 } from "../api";
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
   mockPrefs.mockReturnValue({
     serverUrl: "https://coolify.example.com",
     apiToken: "test-token-123",
@@ -426,7 +428,7 @@ describe("fetchTraefikRawData", () => {
     mockFetch.mockResolvedValue({
       ok: true,
       status: 200,
-      json: jest.fn().mockResolvedValue({ routers: {}, services: {} }),
+      json: vi.fn().mockResolvedValue({ routers: {}, services: {} }),
     } as never);
 
     await fetchTraefikRawData();
@@ -449,7 +451,7 @@ describe("fetchTraefikRawData", () => {
     mockFetch.mockResolvedValue({
       ok: true,
       status: 200,
-      json: jest.fn().mockResolvedValue({ routers: {}, services: {} }),
+      json: vi.fn().mockResolvedValue({ routers: {}, services: {} }),
     } as never);
 
     await fetchTraefikRawData();
@@ -468,7 +470,7 @@ describe("fetchTraefikRawData", () => {
     mockFetch.mockResolvedValue({
       ok: true,
       status: 200,
-      json: jest.fn().mockResolvedValue({
+      json: vi.fn().mockResolvedValue({
         routers: {
           "my-router@docker": {
             entryPoints: ["websecure"],
@@ -510,7 +512,7 @@ describe("fetchTraefikRawData", () => {
     mockFetch.mockResolvedValue({
       ok: true,
       status: 200,
-      json: jest.fn().mockResolvedValue({
+      json: vi.fn().mockResolvedValue({
         routers: {
           "api@internal": {
             entryPoints: ["traefik"],
@@ -558,7 +560,7 @@ describe("fetchTraefikRawData", () => {
     mockFetch.mockResolvedValue({
       ok: false,
       status: 401,
-      text: jest.fn().mockResolvedValue("Unauthorized"),
+      text: vi.fn().mockResolvedValue("Unauthorized"),
     } as never);
 
     await expect(fetchTraefikRawData()).rejects.toThrow("Traefik API 401: Unauthorized");
@@ -573,7 +575,7 @@ describe("fetchTraefikRawData", () => {
     mockFetch.mockResolvedValue({
       ok: true,
       status: 200,
-      json: jest.fn().mockResolvedValue({ routers: {}, services: {} }),
+      json: vi.fn().mockResolvedValue({ routers: {}, services: {} }),
     } as never);
 
     await fetchTraefikRawData();

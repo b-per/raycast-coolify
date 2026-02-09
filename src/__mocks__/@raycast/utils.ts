@@ -1,6 +1,8 @@
-export const useFetch = jest.fn().mockReturnValue({
+import { vi } from "vitest";
+
+export const useFetch = vi.fn().mockReturnValue({
   data: undefined,
   isLoading: true,
   error: undefined,
-  revalidate: jest.fn(),
+  revalidate: vi.fn(),
 });

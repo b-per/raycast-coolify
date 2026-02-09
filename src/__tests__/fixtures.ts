@@ -1,3 +1,4 @@
+import { vi } from "vitest";
 import type { Deployment, Project, Server, Application, Service } from "../api";
 
 /** Build a mock fetch Response */
@@ -6,7 +7,7 @@ export function fakeResponse(body: unknown, status = 200) {
   return {
     ok: status >= 200 && status < 300,
     status,
-    text: jest.fn().mockResolvedValue(text),
+    text: vi.fn().mockResolvedValue(text),
   };
 }
 
