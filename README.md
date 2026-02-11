@@ -2,6 +2,8 @@
 
 Manage your [Coolify](https://coolify.io) deployments, projects, and Traefik proxy from Raycast.
 
+This is an alternative to the [Coolify extension on the Raycast Store](https://www.raycast.com/xmok/coolify), designed for single-server setups with an emphasis on monitoring deployments and retrieving deployment and application logs.
+
 ## Commands
 
 | Command | Description |
