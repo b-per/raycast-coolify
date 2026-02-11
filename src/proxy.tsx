@@ -5,13 +5,14 @@ import {
   Detail,
   getPreferenceValues,
   Icon,
+  Keyboard,
   List,
   showToast,
   Toast,
   confirmAlert,
   Alert,
 } from "@raycast/api";
-import { useState, useEffect } from "react";
+import { useCachedPromise } from "@raycast/utils";
 import {
   Server,
   TraefikRouter,
@@ -24,29 +25,14 @@ import {
 import { traefikStatusColor, traefikStatusIcon, extractHostFromRule } from "./helpers";
 
 export default function ProxyCommand() {
-  const traefikConfigured = Boolean(getPreferenceValues<{ traefikUrl?: string }>().traefikUrl);
-  const [servers, setServers] = useState<Server[]>([]);
-  const [routers, setRouters] = useState<TraefikRouter[]>([]);
-  const [services, setServices] = useState<TraefikService[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  async function load() {
-    setIsLoading(true);
-    try {
-      const [serverData, traefikData] = await Promise.all([listServers(), fetchTraefikRawData()]);
-      setServers(serverData);
-      setRouters(traefikData.routers);
-      setServices(traefikData.services);
-    } catch (err) {
-      showToast({ style: Toast.Style.Failure, title: "Failed to load data", message: String(err) });
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    load();
-  }, []);
+  const traefikConfigured = Boolean(getPreferenceValues<Preferences.Proxy>().traefikUrl);
+  const { data, isLoading, revalidate } = useCachedPromise(async () => {
+    const [serverData, traefikData] = await Promise.all([listServers(), fetchTraefikRawData()]);
+    return { servers: serverData, routers: traefikData.routers, services: traefikData.services };
+  });
+  const servers = data?.servers ?? [];
+  const routers = data?.routers ?? [];
+  const services = data?.services ?? [];
 
   async function handleRestart(server: Server) {
     if (
@@ -60,7 +46,7 @@ export default function ProxyCommand() {
         await showToast({ style: Toast.Style.Animated, title: "Validating server & proxy…" });
         await validateServer(server.uuid);
         await showToast({ style: Toast.Style.Success, title: "Server validation triggered" });
-        load();
+        revalidate();
       } catch (err) {
         await showToast({ style: Toast.Style.Failure, title: "Failed", message: String(err) });
       }
@@ -69,6 +55,7 @@ export default function ProxyCommand() {
 
   return (
     <List isLoading={isLoading} searchBarPlaceholder="Filter servers and routes…">
+      <List.EmptyView title="No Servers" description="No servers found in your Coolify instance" />
       <List.Section title="Servers">
         {servers.map((server) => (
           <List.Item
@@ -96,8 +83,8 @@ export default function ProxyCommand() {
                 <Action
                   title="Refresh"
                   icon={Icon.ArrowClockwise}
-                  shortcut={{ modifiers: ["cmd"], key: "r" }}
-                  onAction={load}
+                  shortcut={Keyboard.Shortcut.Common.Refresh}
+                  onAction={revalidate}
                 />
                 {/* eslint-disable-next-line @raycast/prefer-title-case */}
                 <Action.CopyToClipboard title="Copy Server IP" content={server.ip} />
@@ -129,8 +116,8 @@ export default function ProxyCommand() {
                     <Action
                       title="Refresh"
                       icon={Icon.ArrowClockwise}
-                      shortcut={{ modifiers: ["cmd"], key: "r" }}
-                      onAction={load}
+                      shortcut={Keyboard.Shortcut.Common.Refresh}
+                      onAction={revalidate}
                     />
                   </ActionPanel>
                 }
@@ -162,8 +149,8 @@ export default function ProxyCommand() {
                     <Action
                       title="Refresh"
                       icon={Icon.ArrowClockwise}
-                      shortcut={{ modifiers: ["cmd"], key: "r" }}
-                      onAction={load}
+                      shortcut={Keyboard.Shortcut.Common.Refresh}
+                      onAction={revalidate}
                     />
                   </ActionPanel>
                 }
@@ -285,7 +272,8 @@ function TraefikServiceDetail({ service }: { service: TraefikService }) {
       actions={
         <ActionPanel>
           <Action.CopyToClipboard title="Copy Service Name" content={service.name} />
-          {backendUrls && <Action.CopyToClipboard title="Copy Backend Urls" content={backendUrls} />}
+          {/* eslint-disable-next-line @raycast/prefer-title-case */}
+          {backendUrls && <Action.CopyToClipboard title="Copy Backend URLs" content={backendUrls} />}
         </ActionPanel>
       }
     />

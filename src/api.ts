@@ -1,17 +1,4 @@
-import fetch from "node-fetch";
-import { useFetch } from "@raycast/utils";
 import { getPreferenceValues } from "@raycast/api";
-
-interface Preferences {
-  serverUrl: string;
-  apiToken: string;
-}
-
-interface TraefikPreferences {
-  traefikUrl?: string;
-  traefikUser?: string;
-  traefikPassword?: string;
-}
 
 function prefs() {
   return getPreferenceValues<Preferences>();
@@ -53,14 +40,6 @@ async function api<T>(path: string, opts?: { method?: string; body?: unknown }):
   } catch {
     return text as unknown as T;
   }
-}
-
-/** Hook wrapper around useFetch with auth headers */
-export function useCoolify<T>(path: string, options?: { execute?: boolean }) {
-  return useFetch<T>(`${baseUrl()}${path}`, {
-    headers: headers(),
-    ...options,
-  });
 }
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -313,7 +292,7 @@ interface TraefikRawService {
 }
 
 export async function fetchTraefikRawData(): Promise<{ routers: TraefikRouter[]; services: TraefikService[] }> {
-  const { traefikUrl, traefikUser, traefikPassword } = getPreferenceValues<TraefikPreferences>();
+  const { traefikUrl, traefikUser, traefikPassword } = getPreferenceValues<Preferences.Proxy>();
   if (!traefikUrl) return { routers: [], services: [] };
 
   const url = traefikUrl.replace(/\/+$/, "") + "/api/rawdata";

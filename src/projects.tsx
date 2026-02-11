@@ -1,14 +1,12 @@
-import { Action, ActionPanel, Detail, Icon, List, showToast, Toast, useNavigation } from "@raycast/api";
-import { useState, useEffect } from "react";
+import { Action, ActionPanel, Detail, Icon, Keyboard, List, showToast, Toast, useNavigation } from "@raycast/api";
+import { useCachedPromise } from "@raycast/utils";
 import {
   Application,
   Deployment,
   Environment,
   Project,
   Database,
-  DatabaseDetail,
   Service,
-  ServiceDetail,
   listProjects,
   getProject,
   getEnvironmentDetails,
@@ -31,17 +29,8 @@ import { resourceStatusColor, resourceStatusIcon, deploymentStatusColor, parseDe
 
 // ── Application Logs View ────────────────────────────────────────────
 
-function AppLogsView({ app }: { app: Application }) {
-  const [logs, setLogs] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    getApplicationLogs(app.uuid)
-      .then(setLogs)
-      .catch((err) => showToast({ style: Toast.Style.Failure, title: "Failed to load logs", message: String(err) }))
-      .finally(() => setIsLoading(false));
-  }, [app.uuid]);
-
+function AppLogsView({ app, projectUuid, envUuid }: { app: Application; projectUuid: string; envUuid: string }) {
+  const { data: logs = [], isLoading } = useCachedPromise(getApplicationLogs, [app.uuid]);
   const logText = logs.length > 0 ? logs.join("\n") : "No logs available.";
 
   return (
@@ -52,7 +41,10 @@ function AppLogsView({ app }: { app: Application }) {
       actions={
         <ActionPanel>
           <Action.CopyToClipboard title="Copy Logs" content={logText} />
-          <Action.OpenInBrowser title="Open in Coolify" url={coolifyUrl(`/project/${app.uuid}`)} />
+          <Action.OpenInBrowser
+            title="Open in Coolify"
+            url={coolifyUrl(`/project/${projectUuid}/environment/${envUuid}/application/${app.uuid}`)}
+          />
         </ActionPanel>
       }
     />
@@ -93,23 +85,18 @@ function DeploymentLogsView({ deployment }: { deployment: Deployment }) {
 // ── App Deployments List ─────────────────────────────────────────────
 
 function AppDeploymentsView({ app }: { app: Application }) {
-  const [deployments, setDeployments] = useState<Deployment[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const { push } = useNavigation();
-
-  useEffect(() => {
-    listDeploymentsByApp(app.uuid)
-      .then((data) =>
-        setDeployments([...data].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())),
-      )
-      .catch((err) =>
-        showToast({ style: Toast.Style.Failure, title: "Failed to load deployments", message: String(err) }),
-      )
-      .finally(() => setIsLoading(false));
-  }, [app.uuid]);
+  const { data: deployments = [], isLoading } = useCachedPromise(
+    async (uuid: string) => {
+      const data = await listDeploymentsByApp(uuid);
+      return [...data].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    },
+    [app.uuid],
+  );
 
   return (
     <List isLoading={isLoading} navigationTitle={`Deployments — ${app.name}`}>
+      <List.EmptyView title="No Deployments" description="No deployments found for this application" />
       {deployments.map((d) => (
         <List.Item
           key={d.deployment_uuid}
@@ -138,7 +125,7 @@ function AppDeploymentsView({ app }: { app: Application }) {
 
 // ── Resource Detail (Application) ────────────────────────────────────
 
-function ApplicationDetail({ app }: { app: Application }) {
+function ApplicationDetail({ app, projectUuid, envUuid }: { app: Application; projectUuid: string; envUuid: string }) {
   const { push } = useNavigation();
   const fqdns = app.fqdn ? app.fqdn.split(",").map((f) => f.trim()) : [];
 
@@ -171,7 +158,10 @@ function ApplicationDetail({ app }: { app: Application }) {
             {fqdns.map((url) => (
               <Action.OpenInBrowser key={url} title={`Open ${url.replace(/https?:\/\//, "")}`} url={url} />
             ))}
-            <Action.OpenInBrowser title="Open in Coolify" url={coolifyUrl(`/project/${app.uuid}`)} />
+            <Action.OpenInBrowser
+              title="Open in Coolify"
+              url={coolifyUrl(`/project/${projectUuid}/environment/${envUuid}/application/${app.uuid}`)}
+            />
           </ActionPanel.Section>
           <ActionPanel.Section title="Actions">
             <Action
@@ -179,7 +169,11 @@ function ApplicationDetail({ app }: { app: Application }) {
               icon={Icon.Hammer}
               onAction={() => push(<AppDeploymentsView app={app} />)}
             />
-            <Action title="View Logs" icon={Icon.Terminal} onAction={() => push(<AppLogsView app={app} />)} />
+            <Action
+              title="View Logs"
+              icon={Icon.Terminal}
+              onAction={() => push(<AppLogsView app={app} projectUuid={projectUuid} envUuid={envUuid} />)}
+            />
           </ActionPanel.Section>
           <ActionPanel.Section title="Lifecycle">
             <Action
@@ -234,27 +228,19 @@ function ApplicationDetail({ app }: { app: Application }) {
 function ServiceDetailView({
   service,
   projectUuid,
-  envName,
+  envUuid,
 }: {
   service: Service;
   projectUuid: string;
-  envName: string;
+  envUuid: string;
 }) {
-  const [detail, setDetail] = useState<ServiceDetail | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    getService(service.uuid)
-      .then(setDetail)
-      .catch((err) => showToast({ style: Toast.Style.Failure, title: "Failed to load service", message: String(err) }))
-      .finally(() => setIsLoading(false));
-  }, [service.uuid]);
-
+  const { data: detail, isLoading } = useCachedPromise(getService, [service.uuid]);
   const svcApps = detail?.applications || [];
   const svcDbs = detail?.databases || [];
 
   return (
     <List isLoading={isLoading} navigationTitle={service.name} searchBarPlaceholder="Filter components…">
+      <List.EmptyView title="No Components" description="This service has no components" />
       <List.Section title="Service">
         <List.Item
           icon={{
@@ -316,7 +302,10 @@ function ServiceDetailView({
                 />
               </ActionPanel.Section>
               <ActionPanel.Section title="Navigate">
-                <Action.OpenInBrowser title="Open in Coolify" url={coolifyUrl(`/project/${projectUuid}/${envName}`)} />
+                <Action.OpenInBrowser
+                  title="Open in Coolify"
+                  url={coolifyUrl(`/project/${projectUuid}/environment/${envUuid}/service/${service.uuid}`)}
+                />
               </ActionPanel.Section>
             </ActionPanel>
           }
@@ -340,7 +329,7 @@ function ServiceDetailView({
                   {app.ports && <Action.CopyToClipboard title="Copy Ports" content={app.ports} />}
                   <Action.OpenInBrowser
                     title="Open in Coolify"
-                    url={coolifyUrl(`/project/${projectUuid}/${envName}`)}
+                    url={coolifyUrl(`/project/${projectUuid}/environment/${envUuid}/service/${service.uuid}`)}
                   />
                 </ActionPanel>
               }
@@ -364,7 +353,7 @@ function ServiceDetailView({
                 <ActionPanel>
                   <Action.OpenInBrowser
                     title="Open in Coolify"
-                    url={coolifyUrl(`/project/${projectUuid}/${envName}`)}
+                    url={coolifyUrl(`/project/${projectUuid}/environment/${envUuid}/service/${service.uuid}`)}
                   />
                 </ActionPanel>
               }
@@ -378,17 +367,8 @@ function ServiceDetailView({
 
 // ── Database Detail View ─────────────────────────────────────────────
 
-function DatabaseDetailView({ db, projectUuid, envName }: { db: Database; projectUuid: string; envName: string }) {
-  const [detail, setDetail] = useState<DatabaseDetail | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    getDatabase(db.uuid)
-      .then(setDetail)
-      .catch((err) => showToast({ style: Toast.Style.Failure, title: "Failed to load database", message: String(err) }))
-      .finally(() => setIsLoading(false));
-  }, [db.uuid]);
-
+function DatabaseDetailView({ db, projectUuid, envUuid }: { db: Database; projectUuid: string; envUuid: string }) {
+  const { data: detail, isLoading } = useCachedPromise(getDatabase, [db.uuid]);
   const d = detail || db;
 
   return (
@@ -467,7 +447,10 @@ function DatabaseDetailView({ db, projectUuid, envName }: { db: Database; projec
             />
           </ActionPanel.Section>
           <ActionPanel.Section title="Navigate">
-            <Action.OpenInBrowser title="Open in Coolify" url={coolifyUrl(`/project/${projectUuid}/${envName}`)} />
+            <Action.OpenInBrowser
+              title="Open in Coolify"
+              url={coolifyUrl(`/project/${projectUuid}/environment/${envUuid}/database/${db.uuid}`)}
+            />
           </ActionPanel.Section>
           {detail?.internal_db_url && (
             <ActionPanel.Section title="Copy">
@@ -486,18 +469,8 @@ function DatabaseDetailView({ db, projectUuid, envName }: { db: Database; projec
 // ── Environment Resources View ───────────────────────────────────────
 
 function EnvironmentView({ project, env }: { project: Project; env: Environment }) {
-  const [environment, setEnvironment] = useState<Environment | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const { push } = useNavigation();
-
-  useEffect(() => {
-    getEnvironmentDetails(project.uuid, env.name)
-      .then(setEnvironment)
-      .catch((err) =>
-        showToast({ style: Toast.Style.Failure, title: "Failed to load environment", message: String(err) }),
-      )
-      .finally(() => setIsLoading(false));
-  }, [project.uuid, env.name]);
+  const { data: environment, isLoading } = useCachedPromise(getEnvironmentDetails, [project.uuid, env.name]);
 
   const apps = environment?.applications || [];
   const services = environment?.services || [];
@@ -509,6 +482,7 @@ function EnvironmentView({ project, env }: { project: Project; env: Environment 
       navigationTitle={`${project.name} / ${env.name}`}
       searchBarPlaceholder="Filter resources…"
     >
+      <List.EmptyView title="No Resources" description="This environment has no applications, services, or databases" />
       {apps.length > 0 && (
         <List.Section title="Applications">
           {apps.map((app) => (
@@ -526,7 +500,7 @@ function EnvironmentView({ project, env }: { project: Project; env: Environment 
                   <Action
                     title="View Details"
                     icon={Icon.Sidebar}
-                    onAction={() => push(<ApplicationDetail app={app} />)}
+                    onAction={() => push(<ApplicationDetail app={app} projectUuid={project.uuid} envUuid={env.uuid} />)}
                   />
                   {app.fqdn && <Action.OpenInBrowser title="Open App URL" url={app.fqdn.split(",")[0].trim()} />}
                   <Action
@@ -534,10 +508,14 @@ function EnvironmentView({ project, env }: { project: Project; env: Environment 
                     icon={Icon.Hammer}
                     onAction={() => push(<AppDeploymentsView app={app} />)}
                   />
-                  <Action title="View Logs" icon={Icon.Terminal} onAction={() => push(<AppLogsView app={app} />)} />
+                  <Action
+                    title="View Logs"
+                    icon={Icon.Terminal}
+                    onAction={() => push(<AppLogsView app={app} projectUuid={project.uuid} envUuid={env.uuid} />)}
+                  />
                   <Action.OpenInBrowser
                     title="Open in Coolify"
-                    url={coolifyUrl(`/project/${project.uuid}/${env.name}`)}
+                    url={coolifyUrl(`/project/${project.uuid}/environment/${env.uuid}/application/${app.uuid}`)}
                   />
                 </ActionPanel>
               }
@@ -560,12 +538,12 @@ function EnvironmentView({ project, env }: { project: Project; env: Environment 
                     title="View Details"
                     icon={Icon.Sidebar}
                     onAction={() =>
-                      push(<ServiceDetailView service={svc} projectUuid={project.uuid} envName={env.name} />)
+                      push(<ServiceDetailView service={svc} projectUuid={project.uuid} envUuid={env.uuid} />)
                     }
                   />
                   <Action.OpenInBrowser
                     title="Open in Coolify"
-                    url={coolifyUrl(`/project/${project.uuid}/${env.name}`)}
+                    url={coolifyUrl(`/project/${project.uuid}/environment/${env.uuid}/service/${svc.uuid}`)}
                   />
                 </ActionPanel>
               }
@@ -587,11 +565,11 @@ function EnvironmentView({ project, env }: { project: Project; env: Environment 
                   <Action
                     title="View Details"
                     icon={Icon.Sidebar}
-                    onAction={() => push(<DatabaseDetailView db={db} projectUuid={project.uuid} envName={env.name} />)}
+                    onAction={() => push(<DatabaseDetailView db={db} projectUuid={project.uuid} envUuid={env.uuid} />)}
                   />
                   <Action.OpenInBrowser
                     title="Open in Coolify"
-                    url={coolifyUrl(`/project/${project.uuid}/${env.name}`)}
+                    url={coolifyUrl(`/project/${project.uuid}/environment/${env.uuid}/database/${db.uuid}`)}
                   />
                 </ActionPanel>
               }
@@ -606,21 +584,18 @@ function EnvironmentView({ project, env }: { project: Project; env: Environment 
 // ── Project Environments View ────────────────────────────────────────
 
 function ProjectView({ project }: { project: Project }) {
-  const [fullProject, setFullProject] = useState<Project>(project);
-  const [isLoading, setIsLoading] = useState(true);
   const { push } = useNavigation();
+  const { data: fullProject, isLoading } = useCachedPromise(getProject, [project.uuid]);
 
-  useEffect(() => {
-    getProject(project.uuid)
-      .then(setFullProject)
-      .catch((err) => showToast({ style: Toast.Style.Failure, title: "Failed to load project", message: String(err) }))
-      .finally(() => setIsLoading(false));
-  }, [project.uuid]);
-
-  const envs = fullProject.environments || [];
+  const envs = fullProject?.environments || [];
 
   return (
-    <List isLoading={isLoading} navigationTitle={fullProject.name} searchBarPlaceholder="Filter environments…">
+    <List
+      isLoading={isLoading}
+      navigationTitle={fullProject?.name || project.name}
+      searchBarPlaceholder="Filter environments…"
+    >
+      <List.EmptyView title="No Environments" description="This project has no environments" />
       {envs.map((env) => (
         <List.Item
           key={env.uuid}
@@ -635,7 +610,10 @@ function ProjectView({ project }: { project: Project }) {
                 icon={Icon.AppWindowList}
                 onAction={() => push(<EnvironmentView project={project} env={env} />)}
               />
-              <Action.OpenInBrowser title="Open in Coolify" url={coolifyUrl(`/project/${project.uuid}/${env.name}`)} />
+              <Action.OpenInBrowser
+                title="Open in Coolify"
+                url={coolifyUrl(`/project/${project.uuid}/environment/${env.uuid}`)}
+              />
             </ActionPanel>
           }
         />
@@ -647,29 +625,19 @@ function ProjectView({ project }: { project: Project }) {
 // ── Main Projects Command ────────────────────────────────────────────
 
 export default function ProjectsCommand() {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const { push } = useNavigation();
-
-  async function load() {
-    setIsLoading(true);
-    try {
-      const summaries = await listProjects();
-      const detailed = await Promise.all(summaries.map((p) => getProject(p.uuid)));
-      setProjects(detailed);
-    } catch (err) {
-      showToast({ style: Toast.Style.Failure, title: "Failed to load projects", message: String(err) });
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    load();
-  }, []);
+  const {
+    data: projects = [],
+    isLoading,
+    revalidate,
+  } = useCachedPromise(async () => {
+    const summaries = await listProjects();
+    return Promise.all(summaries.map((p) => getProject(p.uuid)));
+  });
 
   return (
     <List isLoading={isLoading} searchBarPlaceholder="Filter projects…">
+      <List.EmptyView title="No Projects" description="No projects found in your Coolify instance" />
       {projects.map((p) => {
         const envCount = p.environments?.length || 0;
         return (
@@ -694,8 +662,8 @@ export default function ProjectsCommand() {
                 <Action
                   title="Refresh"
                   icon={Icon.ArrowClockwise}
-                  shortcut={{ modifiers: ["cmd"], key: "r" }}
-                  onAction={load}
+                  shortcut={Keyboard.Shortcut.Common.Refresh}
+                  onAction={revalidate}
                 />
               </ActionPanel>
             }

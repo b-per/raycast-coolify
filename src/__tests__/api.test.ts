@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("node-fetch", () => ({ default: vi.fn() }));
 vi.mock("@raycast/api", () => ({ getPreferenceValues: vi.fn() }));
 vi.mock("@raycast/utils", () => ({ useFetch: vi.fn() }));
 
-import fetch from "node-fetch";
+const mockFetch = vi.fn();
+vi.stubGlobal("fetch", mockFetch);
+
 import { getPreferenceValues } from "@raycast/api";
 import {
   fakeResponse,
@@ -15,7 +16,6 @@ import {
   sampleService,
 } from "./fixtures";
 
-const mockFetch = vi.mocked(fetch);
 const mockPrefs = vi.mocked(getPreferenceValues);
 
 // Import api functions after mocks are set up

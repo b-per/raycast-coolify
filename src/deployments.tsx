@@ -1,5 +1,5 @@
-import { Action, ActionPanel, Detail, Icon, List, showToast, Toast, useNavigation } from "@raycast/api";
-import { useState, useEffect } from "react";
+import { Action, ActionPanel, Detail, Icon, Keyboard, List, showToast, Toast, useNavigation } from "@raycast/api";
+import { useCachedPromise } from "@raycast/utils";
 import { Deployment, listApplications, listDeploymentsByApp, cancelDeployment, coolifyUrl } from "./api";
 import { deploymentStatusColor, deploymentStatusIcon, parseDeploymentLogs } from "./helpers";
 
@@ -36,35 +36,23 @@ function DeploymentLogs({ deployment }: { deployment: Deployment }) {
 }
 
 export default function DeploymentsCommand() {
-  const [deployments, setDeployments] = useState<Deployment[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const { push } = useNavigation();
-
-  async function loadDeployments() {
-    setIsLoading(true);
-    try {
-      const apps = await listApplications();
-      const perApp = await Promise.all(apps.map((a) => listDeploymentsByApp(a.uuid, 0, 10).catch(() => [])));
-      const all = perApp.flat();
-      const sorted = all.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      setDeployments(sorted);
-    } catch (err) {
-      showToast({ style: Toast.Style.Failure, title: "Failed to load deployments", message: String(err) });
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    loadDeployments();
-  }, []);
+  const {
+    data: deployments = [],
+    isLoading,
+    revalidate,
+  } = useCachedPromise(async () => {
+    const apps = await listApplications();
+    const perApp = await Promise.all(apps.map((a) => listDeploymentsByApp(a.uuid, 0, 10).catch(() => [])));
+    return perApp.flat().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  });
 
   async function handleCancel(deployment: Deployment) {
     try {
       await showToast({ style: Toast.Style.Animated, title: "Cancelling deployment…" });
       await cancelDeployment(deployment.deployment_uuid);
       await showToast({ style: Toast.Style.Success, title: "Deployment cancelled" });
-      loadDeployments();
+      revalidate();
     } catch (err) {
       await showToast({ style: Toast.Style.Failure, title: "Failed to cancel", message: String(err) });
     }
@@ -72,6 +60,7 @@ export default function DeploymentsCommand() {
 
   return (
     <List isLoading={isLoading} searchBarPlaceholder="Filter deployments…">
+      <List.EmptyView title="No Deployments" description="No deployments found across your applications" />
       {deployments.map((d) => (
         <List.Item
           key={d.deployment_uuid}
@@ -98,8 +87,8 @@ export default function DeploymentsCommand() {
               <Action
                 title="Refresh"
                 icon={Icon.ArrowClockwise}
-                shortcut={{ modifiers: ["cmd"], key: "r" }}
-                onAction={loadDeployments}
+                shortcut={Keyboard.Shortcut.Common.Refresh}
+                onAction={revalidate}
               />
             </ActionPanel>
           }
