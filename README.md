@@ -12,9 +12,19 @@ This is an alternative to the [Coolify extension on the Raycast Store](https://w
 | **Projects** | Browse projects, environments, and their resources (applications, services, databases). Start, stop, restart, and view logs. |
 | **Traefik Proxy** | View server proxy status, Traefik routes and services. Trigger server validation to restart the proxy. |
 
+## Installation
+
+This extension is not published to the Raycast Store. To install it locally:
+
+1. Clone this repository
+2. Run `pnpm install` (or `npm install`)
+3. Run `pnpm dev` (or `npm run dev`) to start the extension in development mode
+
+Raycast will automatically detect and load the extension.
+
 ## Setup
 
-1. Install the extension
+1. Open the extension preferences in Raycast
 2. Set your **Coolify Server URL** (e.g. `https://coolify.example.com`)
 3. Set your **API Token** — create one in Coolify under *Keys & Tokens* settings
 

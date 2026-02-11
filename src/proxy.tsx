@@ -86,7 +86,6 @@ export default function ProxyCommand() {
                   shortcut={Keyboard.Shortcut.Common.Refresh}
                   onAction={revalidate}
                 />
-                {/* eslint-disable-next-line @raycast/prefer-title-case */}
                 <Action.CopyToClipboard title="Copy Server IP" content={server.ip} />
               </ActionPanel>
             }
@@ -272,7 +271,6 @@ function TraefikServiceDetail({ service }: { service: TraefikService }) {
       actions={
         <ActionPanel>
           <Action.CopyToClipboard title="Copy Service Name" content={service.name} />
-          {/* eslint-disable-next-line @raycast/prefer-title-case */}
           {backendUrls && <Action.CopyToClipboard title="Copy Backend URLs" content={backendUrls} />}
         </ActionPanel>
       }
